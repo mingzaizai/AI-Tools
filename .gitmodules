@@ -1,0 +1,4 @@
+[submodule "carShell"]
+	path = carShell
+	url = git@g.ktvsky.com:carplay/KTVLite-carShell.git
+	branch = master
