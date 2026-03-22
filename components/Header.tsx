@@ -1,16 +1,13 @@
 
 import React from 'react';
-import { Download } from 'lucide-react';
 import { AppMode } from '../types';
 
 interface HeaderProps {
   mode: AppMode;
-  onExport: () => void;
-  canExport: boolean;
   imagesCount: number;
 }
 
-const Header: React.FC<HeaderProps> = ({ mode, onExport, canExport, imagesCount }) => {
+const Header: React.FC<HeaderProps> = ({ mode, imagesCount }) => {
   const getTitle = () => {
     switch (mode) {
       case AppMode.LIBRARY: return '图片库';
@@ -19,6 +16,10 @@ const Header: React.FC<HeaderProps> = ({ mode, onExport, canExport, imagesCount 
       case AppMode.MERGE: return '拼图合并中心';
       case AppMode.JSON_EDIT: return 'JSON 编辑器';
       case AppMode.SETTINGS: return '设置';
+      case AppMode.SQL_EDITOR: return 'SQL 编辑器';
+      case AppMode.ENCODING_TOOLS: return '编码工具';
+      case AppMode.TIME_TOOLS: return '时间工具';
+      case AppMode.NETWORK_TOOLS: return '网络工具';
       default: return 'AI 智能工具';
     }
   };
@@ -33,23 +34,6 @@ const Header: React.FC<HeaderProps> = ({ mode, onExport, canExport, imagesCount 
           <span className="px-2 py-0.5 bg-slate-200 rounded-full text-xs font-medium text-slate-600">
             {imagesCount} 个文件
           </span>
-        )}
-      </div>
-
-      <div className="flex items-center gap-3">
-        {mode !== AppMode.JSON_EDIT && mode !== AppMode.SETTINGS && (
-          <button
-            onClick={onExport}
-            disabled={!canExport}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all
-              ${canExport 
-                ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-500/20' 
-                : 'bg-slate-200 text-slate-400 cursor-not-allowed'}
-            `}
-          >
-            <Download className="w-4 h-4" />
-            导出结果
-          </button>
         )}
       </div>
     </header>

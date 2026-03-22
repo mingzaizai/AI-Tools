@@ -51,7 +51,36 @@ export enum AppMode {
   BATCH = 'BATCH',
   MERGE = 'MERGE',
   JSON_EDIT = 'JSON_EDIT',
-  SETTINGS = 'SETTINGS'
+  SETTINGS = 'SETTINGS',
+  SQL_EDITOR = 'SQL_EDITOR',
+  ENCODING_TOOLS = 'ENCODING_TOOLS',
+  TIME_TOOLS = 'TIME_TOOLS',
+  NETWORK_TOOLS = 'NETWORK_TOOLS'
+}
+
+// 数据库相关类型
+export interface TableInfo {
+  name: string;
+  columns: ColumnInfo[];
+  rowCount: number;
+}
+
+export interface ColumnInfo {
+  name: string;
+  type: string;
+  notNull: boolean;
+  defaultValue: string | null;
+  primaryKey: boolean;
+}
+
+export interface QueryResult {
+  columns: string[];
+  values: any[][];
+}
+
+export interface SQLError {
+  message: string;
+  code?: number;
 }
 
 export interface ProcessingHistory {

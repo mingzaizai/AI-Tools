@@ -8,6 +8,10 @@ export default defineConfig(({ mode }) => {
       server: {
         port: 3000,
         host: '0.0.0.0',
+        headers: {
+          'Cross-Origin-Opener-Policy': 'same-origin',
+          'Cross-Origin-Embedder-Policy': 'require-corp'
+        }
       },
       plugins: [react()],
       define: {
@@ -18,6 +22,10 @@ export default defineConfig(({ mode }) => {
         alias: {
           '@': path.resolve(__dirname, '.'),
         }
-      }
+      },
+      optimizeDeps: {
+        include: ['sql.js']
+      },
+      assetsInclude: ['**/*.wasm']
     };
 });

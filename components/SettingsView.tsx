@@ -42,7 +42,7 @@ const SettingsView: React.FC = () => {
           <div className="flex flex-col md:flex-row gap-8 justify-between text-slate-500">
             <div className="space-y-2">
               <p className="text-sm font-bold text-slate-600 flex items-center gap-2">
-                <span className="flex items-center gap-2"><Info className="w-4 h-4" /> AI 智能工具 v1.2.0</span>
+                <span className="flex items-center gap-2"><Info className="w-4 h-4" /> AI 智能工具 v1.0.1</span>
               </p>
             </div>
             <div className="flex gap-6">

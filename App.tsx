@@ -7,7 +7,11 @@ import {
   Maximize2,
   Box,
   Combine,
-  FileJson
+  FileJson,
+  Database,
+  Code,
+  Clock,
+  Globe
 } from 'lucide-react';
 import { AppMode, ImageData } from './types';
 import Header from './components/Header';
@@ -17,6 +21,10 @@ import BatchView from './components/BatchView';
 import MergeView from './components/MergeView';
 import SettingsView from './components/SettingsView';
 import JsonEditView from './components/JsonEditView';
+import SQLEditorView from './components/SQLEditorView';
+import EncodingToolsView from './components/EncodingToolsView';
+import TimeToolsView from './components/TimeToolsView';
+import NetworkToolsView from './components/NetworkToolsView';
 
 const App: React.FC = () => {
   const [mode, setMode] = useState<AppMode>(AppMode.LIBRARY);
@@ -56,27 +64,6 @@ const App: React.FC = () => {
 
   const selectedImage = images.find(img => img.id === selectedImageId);
 
-  const handleGlobalExport = () => {
-    const buttons = Array.from(document.querySelectorAll('button'));
-    
-    if (mode === AppMode.EDITOR) {
-      const saveBtn = buttons.find(b => b.textContent?.includes('导出图片'));
-      if (saveBtn) saveBtn.click();
-    } else if (mode === AppMode.BATCH) {
-      const batchDownloadBtn = buttons.find(b => b.textContent?.includes('下载所有'));
-      if (batchDownloadBtn) {
-        batchDownloadBtn.click();
-      } else {
-        alert("请先点击右下角的 '开始执行' 以生成结果。");
-      }
-    } else if (mode === AppMode.MERGE) {
-      const mergeExportBtn = buttons.find(b => b.textContent?.includes('导出合并结果'));
-      if (mergeExportBtn) mergeExportBtn.click();
-    } else if (mode === AppMode.LIBRARY) {
-      alert("请进入编辑模式、批量模式或合并模式进行导出。");
-    }
-  };
-
   return (
     <div className="flex h-screen w-full bg-[#f8fafc] overflow-hidden text-slate-800">
       <aside className="w-64 border-r border-slate-200 bg-white shrink-0 flex flex-col">
@@ -105,6 +92,42 @@ const App: React.FC = () => {
           />
         </div>
         
+        <div className="p-4 border-b border-slate-200">
+          <NavButton 
+            active={mode === AppMode.SQL_EDITOR} 
+            icon={<Database />} 
+            label="SQL 编辑器" 
+            onClick={() => setMode(AppMode.SQL_EDITOR)} 
+          />
+        </div>
+        
+        <div className="p-4 border-b border-slate-200">
+          <NavButton 
+            active={mode === AppMode.ENCODING_TOOLS} 
+            icon={<Code />} 
+            label="编码工具" 
+            onClick={() => setMode(AppMode.ENCODING_TOOLS)} 
+          />
+        </div>
+        
+        <div className="p-4 border-b border-slate-200">
+          <NavButton 
+            active={mode === AppMode.TIME_TOOLS} 
+            icon={<Clock />} 
+            label="时间工具" 
+            onClick={() => setMode(AppMode.TIME_TOOLS)} 
+          />
+        </div>
+        
+        <div className="p-4 border-b border-slate-200">
+          <NavButton 
+            active={mode === AppMode.NETWORK_TOOLS} 
+            icon={<Globe />} 
+            label="网络工具" 
+            onClick={() => setMode(AppMode.NETWORK_TOOLS)} 
+          />
+        </div>
+        
         <div className="mt-auto p-4 border-t border-slate-200">
           <NavButton 
             active={mode === AppMode.SETTINGS}
@@ -118,8 +141,6 @@ const App: React.FC = () => {
       <main className="flex-1 flex flex-col overflow-hidden relative">
         <Header 
           mode={mode} 
-          onExport={handleGlobalExport} 
-          canExport={mode === AppMode.EDITOR ? !!selectedImageId : images.length > 0} 
           imagesCount={images.length}
         />
 
@@ -224,6 +245,22 @@ const App: React.FC = () => {
 
           {mode === AppMode.SETTINGS && (
             <SettingsView />
+          )}
+
+          {mode === AppMode.SQL_EDITOR && (
+            <SQLEditorView />
+          )}
+
+          {mode === AppMode.ENCODING_TOOLS && (
+            <EncodingToolsView />
+          )}
+
+          {mode === AppMode.TIME_TOOLS && (
+            <TimeToolsView />
+          )}
+
+          {mode === AppMode.NETWORK_TOOLS && (
+            <NetworkToolsView />
           )}
         </div>
       </main>
