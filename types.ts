@@ -55,7 +55,9 @@ export enum AppMode {
   SQL_EDITOR = 'SQL_EDITOR',
   ENCODING_TOOLS = 'ENCODING_TOOLS',
   TIME_TOOLS = 'TIME_TOOLS',
-  NETWORK_TOOLS = 'NETWORK_TOOLS'
+  NETWORK_TOOLS = 'NETWORK_TOOLS',
+  MARKDOWN_EDITOR = 'MARKDOWN_EDITOR',
+  GITHUB_SEARCH = 'GITHUB_SEARCH'
 }
 
 // 数据库相关类型
@@ -87,4 +89,25 @@ export interface ProcessingHistory {
   filters: ImageFilters;
   transform: ImageTransform;
   texts: TextOverlay[];
+}
+
+// GitHub 检索相关类型
+export interface GitHubRepo {
+  id: number;
+  full_name: string;
+  description: string | null;
+  html_url: string;
+  stargazers_count: number;
+  forks_count: number;
+  language: string | null;
+  updated_at: string;
+  license: { spdx_id: string } | null;
+  owner: { login: string; avatar_url: string };
+}
+
+export interface SearchParams {
+  query: string;
+  language: string;
+  minStars: '' | '100' | '1000' | '10000';
+  sort: 'stars' | 'updated' | 'best-match'; // best-match 时 API 不传 sort 参数
 }

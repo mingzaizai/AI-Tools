@@ -17,9 +17,10 @@ const Header: React.FC<HeaderProps> = ({ mode, imagesCount }) => {
       case AppMode.JSON_EDIT: return 'JSON 编辑器';
       case AppMode.SETTINGS: return '设置';
       case AppMode.SQL_EDITOR: return 'SQL 编辑器';
-      case AppMode.ENCODING_TOOLS: return '编码工具';
+      case AppMode.ENCODING_TOOLS: return '编解码工具';
       case AppMode.TIME_TOOLS: return '时间工具';
       case AppMode.NETWORK_TOOLS: return '网络工具';
+      case AppMode.MARKDOWN_EDITOR: return 'Markdown 编辑器';
       default: return 'AI 智能工具';
     }
   };

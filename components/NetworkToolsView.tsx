@@ -9,10 +9,23 @@ const NetworkToolsView: React.FC = () => {
   const [copyFeedback, setCopyFeedback] = useState(false);
 
   // HTTP 请求相关状态
-  const [httpUrl, setHttpUrl] = useState('');
-  const [httpMethod, setHttpMethod] = useState<'GET' | 'POST' | 'PUT' | 'DELETE'>('GET');
-  const [httpHeaders, setHttpHeaders] = useState<{ key: string; value: string }[]>([]);
-  const [httpBody, setHttpBody] = useState('');
+  const [httpUrl, setHttpUrl] = useState(() => {
+    return localStorage.getItem('networkTools_httpUrl') || '';
+  });
+  const [httpMethod, setHttpMethod] = useState<'GET' | 'POST' | 'PUT' | 'DELETE'>(() => {
+    return (localStorage.getItem('networkTools_httpMethod') as 'GET' | 'POST' | 'PUT' | 'DELETE') || 'GET';
+  });
+  const [httpHeaders, setHttpHeaders] = useState<{ key: string; value: string }[]>(() => {
+    try {
+      const saved = localStorage.getItem('networkTools_httpHeaders');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [httpBody, setHttpBody] = useState(() => {
+    return localStorage.getItem('networkTools_httpBody') || '';
+  });
   const [httpResponse, setHttpResponse] = useState('');
   const [httpStatus, setHttpStatus] = useState<number | null>(null);
   const [httpLoading, setHttpLoading] = useState(false);
@@ -27,6 +40,23 @@ const NetworkToolsView: React.FC = () => {
   const [qrSize, setQrSize] = useState(200);
   const [qrCode, setQrCode] = useState('');
   const [qrFrame, setQrFrame] = useState<string>('none');
+
+  // 保存 HTTP 请求配置到 localStorage
+  useEffect(() => {
+    localStorage.setItem('networkTools_httpUrl', httpUrl);
+  }, [httpUrl]);
+
+  useEffect(() => {
+    localStorage.setItem('networkTools_httpMethod', httpMethod);
+  }, [httpMethod]);
+
+  useEffect(() => {
+    localStorage.setItem('networkTools_httpHeaders', JSON.stringify(httpHeaders));
+  }, [httpHeaders]);
+
+  useEffect(() => {
+    localStorage.setItem('networkTools_httpBody', httpBody);
+  }, [httpBody]);
 
   // 相框样式定义
   const frameStyles = [

@@ -1,8 +1,21 @@
 
-import React from 'react';
-import { Shield, Key, Cpu, Info, Github, ExternalLink, HardDrive } from 'lucide-react';
+import React, { useState } from 'react';
+import { Shield, Key, Cpu, Info, Github, ExternalLink, HardDrive, CheckCircle2 } from 'lucide-react';
 
 const SettingsView: React.FC = () => {
+  const [token, setToken] = useState(localStorage.getItem('github_token') ?? '');
+  const [saved, setSaved] = useState(false);
+
+  const handleSaveToken = () => {
+    if (token.trim()) {
+      localStorage.setItem('github_token', token.trim());
+    } else {
+      localStorage.removeItem('github_token');
+    }
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
   return (
     <div className="h-full overflow-y-auto bg-[#f8fafc] p-8 md:p-12">
       <div className="max-w-3xl mx-auto space-y-10">
@@ -14,11 +27,54 @@ const SettingsView: React.FC = () => {
               title="隐私模式"
               description="当前处于 100% 本地处理模式。您的图片不会被上传至任何第三方服务器进行存储。"
             />
-            <SettingsCard 
+            <SettingsCard
               icon={<Cpu className="text-purple-600" />}
               title="硬件加速"
               description="已启用 WebGL 和 Canvas 硬件加速，以获得流畅的编辑体验。"
             />
+            {/* GitHub Token 配置 */}
+            <div className="flex items-start gap-4 p-5 bg-white rounded-2xl border border-slate-200">
+              <div className="p-2 bg-slate-100 rounded-xl shrink-0">
+                <Key className="text-indigo-600 w-5 h-5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-sm font-bold text-slate-800 mb-1">GitHub Token</h3>
+                <p className="text-xs text-slate-500 leading-relaxed mb-3">
+                  配置后每小时可请求 5000 次（未配置仅 60 次）。在{' '}
+                  <a
+                    href="https://github.com/settings/tokens"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-indigo-600 underline"
+                  >
+                    GitHub → Settings → Developer Settings
+                  </a>{' '}
+                  生成 Personal Access Token（无需勾选任何权限）。
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    type="password"
+                    value={token}
+                    onChange={e => setToken(e.target.value)}
+                    placeholder="ghp_xxxxxxxxxxxx"
+                    className="flex-1 px-3 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                  />
+                  <button
+                    onClick={handleSaveToken}
+                    className="px-3 py-1.5 text-xs bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-1.5"
+                  >
+                    {saved ? (
+                      <>
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        已保存
+                      </>
+                    ) : (
+                      '保存'
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
 

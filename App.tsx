@@ -1,9 +1,9 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { 
-  Image as ImageIcon, 
-  Layers, 
-  Settings, 
+import {
+  Image as ImageIcon,
+  Layers,
+  Settings,
   Maximize2,
   Box,
   Combine,
@@ -11,7 +11,9 @@ import {
   Database,
   Code,
   Clock,
-  Globe
+  Globe,
+  FileText,
+  Github
 } from 'lucide-react';
 import { AppMode, ImageData } from './types';
 import Header from './components/Header';
@@ -25,12 +27,20 @@ import SQLEditorView from './components/SQLEditorView';
 import EncodingToolsView from './components/EncodingToolsView';
 import TimeToolsView from './components/TimeToolsView';
 import NetworkToolsView from './components/NetworkToolsView';
+import MarkdownEditorView from './components/MarkdownEditorView';
+import GitHubSearchView from './components/GitHubSearchView';
 
 const App: React.FC = () => {
   const [mode, setMode] = useState<AppMode>(AppMode.LIBRARY);
   const [images, setImages] = useState<ImageData[]>([]);
   const [selectedImageId, setSelectedImageId] = useState<string | null>(null);
   const [imageProcessingMode, setImageProcessingMode] = useState<AppMode>(AppMode.LIBRARY);
+
+  useEffect(() => {
+    const handler = () => setMode(AppMode.SETTINGS);
+    window.addEventListener('navigate-to-settings', handler);
+    return () => window.removeEventListener('navigate-to-settings', handler);
+  }, []);
 
   const handleUpload = useCallback((newFiles: File[]) => {
     const newImages: ImageData[] = newFiles.map(file => ({
@@ -75,7 +85,7 @@ const App: React.FC = () => {
           <NavButton 
             active={mode === AppMode.LIBRARY || mode === AppMode.EDITOR || mode === AppMode.MERGE || mode === AppMode.BATCH} 
             icon={<ImageIcon />} 
-            label="图片处理" 
+            label="图片编辑" 
             onClick={() => {
               setMode(AppMode.LIBRARY);
               setImageProcessingMode(AppMode.LIBRARY);
@@ -105,7 +115,7 @@ const App: React.FC = () => {
           <NavButton 
             active={mode === AppMode.ENCODING_TOOLS} 
             icon={<Code />} 
-            label="编码工具" 
+            label="编解码工具" 
             onClick={() => setMode(AppMode.ENCODING_TOOLS)} 
           />
         </div>
@@ -120,11 +130,29 @@ const App: React.FC = () => {
         </div>
         
         <div className="p-4 border-b border-slate-200">
-          <NavButton 
-            active={mode === AppMode.NETWORK_TOOLS} 
-            icon={<Globe />} 
-            label="网络工具" 
-            onClick={() => setMode(AppMode.NETWORK_TOOLS)} 
+          <NavButton
+            active={mode === AppMode.NETWORK_TOOLS}
+            icon={<Globe />}
+            label="网络工具"
+            onClick={() => setMode(AppMode.NETWORK_TOOLS)}
+          />
+        </div>
+
+        <div className="p-4 border-b border-slate-200">
+          <NavButton
+            active={mode === AppMode.MARKDOWN_EDITOR}
+            icon={<FileText />}
+            label="Markdown 编辑器"
+            onClick={() => setMode(AppMode.MARKDOWN_EDITOR)}
+          />
+        </div>
+
+        <div className="p-4 border-b border-slate-200">
+          <NavButton
+            active={mode === AppMode.GITHUB_SEARCH}
+            icon={<Github />}
+            label="GitHub 检索"
+            onClick={() => setMode(AppMode.GITHUB_SEARCH)}
           />
         </div>
         
@@ -261,6 +289,14 @@ const App: React.FC = () => {
 
           {mode === AppMode.NETWORK_TOOLS && (
             <NetworkToolsView />
+          )}
+
+          {mode === AppMode.MARKDOWN_EDITOR && (
+            <MarkdownEditorView />
+          )}
+
+          {mode === AppMode.GITHUB_SEARCH && (
+            <GitHubSearchView />
           )}
         </div>
       </main>
