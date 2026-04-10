@@ -11,7 +11,7 @@ const Header: React.FC<HeaderProps> = ({ mode, imagesCount }) => {
   const getTitle = () => {
     switch (mode) {
       case AppMode.LIBRARY: return '图片库';
-      case AppMode.EDITOR: return 'AI 智能工具';
+      case AppMode.EDITOR: return '图片编辑';
       case AppMode.BATCH: return '批量处理中心';
       case AppMode.MERGE: return '拼图合并中心';
       case AppMode.JSON_EDIT: return 'JSON 编辑器';
@@ -21,7 +21,10 @@ const Header: React.FC<HeaderProps> = ({ mode, imagesCount }) => {
       case AppMode.TIME_TOOLS: return '时间工具';
       case AppMode.NETWORK_TOOLS: return '网络工具';
       case AppMode.MARKDOWN_EDITOR: return 'Markdown 编辑器';
-      default: return 'AI 智能工具';
+      case AppMode.GITHUB_SEARCH: return 'GitHub 检索';
+      case AppMode.AI_TEXT_TOOLS: return 'AI 文本审查';
+      case AppMode.VIDEO_EDITOR: return '视频编辑';
+      default: return '图片库';
     }
   };
 

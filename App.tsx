@@ -13,7 +13,9 @@ import {
   Clock,
   Globe,
   FileText,
-  Github
+  Github,
+  BrainCircuit,
+  Clapperboard
 } from 'lucide-react';
 import { AppMode, ImageData } from './types';
 import Header from './components/Header';
@@ -29,12 +31,16 @@ import TimeToolsView from './components/TimeToolsView';
 import NetworkToolsView from './components/NetworkToolsView';
 import MarkdownEditorView from './components/MarkdownEditorView';
 import GitHubSearchView from './components/GitHubSearchView';
+import AITextToolsView from './components/AITextToolsView';
+import VideoEditorView from './components/VideoEditorView';
 
 const App: React.FC = () => {
   const [mode, setMode] = useState<AppMode>(AppMode.LIBRARY);
   const [images, setImages] = useState<ImageData[]>([]);
   const [selectedImageId, setSelectedImageId] = useState<string | null>(null);
   const [imageProcessingMode, setImageProcessingMode] = useState<AppMode>(AppMode.LIBRARY);
+  const [lastSelectedImage, setLastSelectedImage] = useState<ImageData | null>(null);
+  const [videoEditorMounted, setVideoEditorMounted] = useState(false);
 
   useEffect(() => {
     const handler = () => setMode(AppMode.SETTINGS);
@@ -73,6 +79,9 @@ const App: React.FC = () => {
   };
 
   const selectedImage = images.find(img => img.id === selectedImageId);
+  if (selectedImage && selectedImage !== lastSelectedImage) {
+    setLastSelectedImage(selectedImage);
+  }
 
   return (
     <div className="flex h-screen w-full bg-[#f8fafc] overflow-hidden text-slate-800">
@@ -80,88 +89,99 @@ const App: React.FC = () => {
         <div className="p-4 border-b border-slate-200">
           <h2 className="font-bold text-slate-800">功能导航</h2>
         </div>
-        
-        <div className="p-4 border-b border-slate-200">
-          <NavButton 
-            active={mode === AppMode.LIBRARY || mode === AppMode.EDITOR || mode === AppMode.MERGE || mode === AppMode.BATCH} 
-            icon={<ImageIcon />} 
-            label="图片编辑" 
-            onClick={() => {
-              setMode(AppMode.LIBRARY);
-              setImageProcessingMode(AppMode.LIBRARY);
-            }} 
-          />
-        </div>
-        
-        <div className="p-4 border-b border-slate-200">
-          <NavButton 
-            active={mode === AppMode.JSON_EDIT} 
-            icon={<FileJson />} 
-            label="JSON 编辑器" 
-            onClick={() => setMode(AppMode.JSON_EDIT)} 
-          />
-        </div>
-        
-        <div className="p-4 border-b border-slate-200">
-          <NavButton 
-            active={mode === AppMode.SQL_EDITOR} 
-            icon={<Database />} 
-            label="SQL 编辑器" 
-            onClick={() => setMode(AppMode.SQL_EDITOR)} 
-          />
-        </div>
-        
-        <div className="p-4 border-b border-slate-200">
-          <NavButton 
-            active={mode === AppMode.ENCODING_TOOLS} 
-            icon={<Code />} 
-            label="编解码工具" 
-            onClick={() => setMode(AppMode.ENCODING_TOOLS)} 
-          />
-        </div>
-        
-        <div className="p-4 border-b border-slate-200">
-          <NavButton 
-            active={mode === AppMode.TIME_TOOLS} 
-            icon={<Clock />} 
-            label="时间工具" 
-            onClick={() => setMode(AppMode.TIME_TOOLS)} 
-          />
-        </div>
-        
-        <div className="p-4 border-b border-slate-200">
-          <NavButton
-            active={mode === AppMode.NETWORK_TOOLS}
-            icon={<Globe />}
-            label="网络工具"
-            onClick={() => setMode(AppMode.NETWORK_TOOLS)}
-          />
+
+        <div className="flex-1 overflow-y-auto">
+          <div className="px-3 py-2 border-b border-slate-200">
+            <NavButton
+              active={mode === AppMode.LIBRARY || mode === AppMode.EDITOR || mode === AppMode.MERGE || mode === AppMode.BATCH}
+              icon={<ImageIcon />}
+              label="图片编辑"
+              onClick={() => setMode(imageProcessingMode)}
+            />
+          </div>
+          <div className="px-3 py-2 border-b border-slate-200">
+            <NavButton
+              active={mode === AppMode.JSON_EDIT}
+              icon={<FileJson />}
+              label="JSON 编辑器"
+              onClick={() => setMode(AppMode.JSON_EDIT)}
+            />
+          </div>
+          <div className="px-3 py-2 border-b border-slate-200">
+            <NavButton
+              active={mode === AppMode.SQL_EDITOR}
+              icon={<Database />}
+              label="SQL 编辑器"
+              onClick={() => setMode(AppMode.SQL_EDITOR)}
+            />
+          </div>
+          <div className="px-3 py-2 border-b border-slate-200">
+            <NavButton
+              active={mode === AppMode.ENCODING_TOOLS}
+              icon={<Code />}
+              label="编解码工具"
+              onClick={() => setMode(AppMode.ENCODING_TOOLS)}
+            />
+          </div>
+          <div className="px-3 py-2 border-b border-slate-200">
+            <NavButton
+              active={mode === AppMode.TIME_TOOLS}
+              icon={<Clock />}
+              label="时间工具"
+              onClick={() => setMode(AppMode.TIME_TOOLS)}
+            />
+          </div>
+          <div className="px-3 py-2 border-b border-slate-200">
+            <NavButton
+              active={mode === AppMode.NETWORK_TOOLS}
+              icon={<Globe />}
+              label="网络工具"
+              onClick={() => setMode(AppMode.NETWORK_TOOLS)}
+            />
+          </div>
+          <div className="px-3 py-2 border-b border-slate-200">
+            <NavButton
+              active={mode === AppMode.MARKDOWN_EDITOR}
+              icon={<FileText />}
+              label="Markdown 编辑器"
+              onClick={() => setMode(AppMode.MARKDOWN_EDITOR)}
+            />
+          </div>
+          <div className="px-3 py-2 border-b border-slate-200">
+            <NavButton
+              active={mode === AppMode.GITHUB_SEARCH}
+              icon={<Github />}
+              label="GitHub 检索"
+              onClick={() => setMode(AppMode.GITHUB_SEARCH)}
+            />
+          </div>
+          <div className="px-3 py-2 border-b border-slate-200">
+            <NavButton
+              active={mode === AppMode.AI_TEXT_TOOLS}
+              icon={<BrainCircuit />}
+              label="AI 文本审查"
+              onClick={() => setMode(AppMode.AI_TEXT_TOOLS)}
+            />
+          </div>
+          <div className="px-3 py-2 border-b border-slate-200">
+            <NavButton
+              active={mode === AppMode.VIDEO_EDITOR}
+              icon={<Clapperboard />}
+              label="视频编辑"
+              onClick={() => {
+                setVideoEditorMounted(true);
+                setMode(AppMode.VIDEO_EDITOR);
+              }}
+            />
+          </div>
         </div>
 
-        <div className="p-4 border-b border-slate-200">
+        <div className="px-3 py-2 border-t border-slate-200">
           <NavButton
-            active={mode === AppMode.MARKDOWN_EDITOR}
-            icon={<FileText />}
-            label="Markdown 编辑器"
-            onClick={() => setMode(AppMode.MARKDOWN_EDITOR)}
-          />
-        </div>
-
-        <div className="p-4 border-b border-slate-200">
-          <NavButton
-            active={mode === AppMode.GITHUB_SEARCH}
-            icon={<Github />}
-            label="GitHub 检索"
-            onClick={() => setMode(AppMode.GITHUB_SEARCH)}
-          />
-        </div>
-        
-        <div className="mt-auto p-4 border-t border-slate-200">
-          <NavButton 
             active={mode === AppMode.SETTINGS}
-            icon={<Settings />} 
-            label="设置" 
-            onClick={() => setMode(AppMode.SETTINGS)} 
+            icon={<Settings />}
+            label="设置"
+            onClick={() => setMode(AppMode.SETTINGS)}
           />
         </div>
       </aside>
@@ -229,9 +249,9 @@ const App: React.FC = () => {
         )}
 
         <div className="flex-1 overflow-hidden">
-          {mode === AppMode.LIBRARY && (
-            <LibraryView 
-              images={images} 
+          <div className={mode === AppMode.LIBRARY ? 'h-full' : 'hidden'}>
+            <LibraryView
+              images={images}
               onSelect={(id) => {
                 setSelectedImageId(id);
                 setMode(AppMode.EDITOR);
@@ -240,63 +260,69 @@ const App: React.FC = () => {
               onRemove={removeImage}
               onUpload={handleUpload}
             />
+          </div>
+
+          {lastSelectedImage && (
+            <div className={mode === AppMode.EDITOR ? 'h-full' : 'hidden'}>
+              <EditorView
+                key={lastSelectedImage.id}
+                image={lastSelectedImage}
+                onClose={() => {
+                  setMode(AppMode.LIBRARY);
+                  setImageProcessingMode(AppMode.LIBRARY);
+                }}
+              />
+            </div>
           )}
 
-          {mode === AppMode.EDITOR && selectedImage && (
-            <EditorView 
-              image={selectedImage} 
-              onClose={() => {
-                setMode(AppMode.LIBRARY);
-                setImageProcessingMode(AppMode.LIBRARY);
-              }}
-            />
-          )}
+          <div className={mode === AppMode.BATCH ? 'h-full' : 'hidden'}>
+            <BatchView images={images} onRemove={removeImage} onUpload={handleUpload} />
+          </div>
 
-          {mode === AppMode.BATCH && (
-            <BatchView 
-              images={images} 
-              onRemove={removeImage}
-              onUpload={handleUpload}
-            />
-          )}
+          <div className={mode === AppMode.MERGE ? 'h-full' : 'hidden'}>
+            <MergeView images={images} onUpload={handleUpload} />
+          </div>
 
-          {mode === AppMode.MERGE && (
-            <MergeView 
-              images={images}
-              onUpload={handleUpload}
-            />
-          )}
-
-          {mode === AppMode.JSON_EDIT && (
+          <div className={mode === AppMode.JSON_EDIT ? 'h-full' : 'hidden'}>
             <JsonEditView />
-          )}
+          </div>
 
-          {mode === AppMode.SETTINGS && (
+          <div className={mode === AppMode.SETTINGS ? 'h-full' : 'hidden'}>
             <SettingsView />
-          )}
+          </div>
 
-          {mode === AppMode.SQL_EDITOR && (
+          <div className={mode === AppMode.SQL_EDITOR ? 'h-full' : 'hidden'}>
             <SQLEditorView />
-          )}
+          </div>
 
-          {mode === AppMode.ENCODING_TOOLS && (
+          <div className={mode === AppMode.ENCODING_TOOLS ? 'h-full' : 'hidden'}>
             <EncodingToolsView />
-          )}
+          </div>
 
-          {mode === AppMode.TIME_TOOLS && (
+          <div className={mode === AppMode.TIME_TOOLS ? 'h-full' : 'hidden'}>
             <TimeToolsView />
-          )}
+          </div>
 
-          {mode === AppMode.NETWORK_TOOLS && (
+          <div className={mode === AppMode.NETWORK_TOOLS ? 'h-full' : 'hidden'}>
             <NetworkToolsView />
-          )}
+          </div>
 
-          {mode === AppMode.MARKDOWN_EDITOR && (
+          <div className={mode === AppMode.MARKDOWN_EDITOR ? 'h-full' : 'hidden'}>
             <MarkdownEditorView />
-          )}
+          </div>
 
-          {mode === AppMode.GITHUB_SEARCH && (
+          <div className={mode === AppMode.GITHUB_SEARCH ? 'h-full' : 'hidden'}>
             <GitHubSearchView />
+          </div>
+
+          <div className={mode === AppMode.AI_TEXT_TOOLS ? 'h-full' : 'hidden'}>
+            <AITextToolsView />
+          </div>
+
+          {videoEditorMounted && (
+            <div className={mode === AppMode.VIDEO_EDITOR ? 'h-full' : 'hidden'}>
+              <VideoEditorView />
+            </div>
           )}
         </div>
       </main>

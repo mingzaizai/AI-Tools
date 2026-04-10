@@ -1,5 +1,5 @@
 {
-  "name": "AI 智能工具",
+  "name": "AI 文本审查",
   "description": "隐私至上的专业级本地图片编辑器，支持批量处理、高级滤镜和基于 Gemini 的 AI 智能增强。",
   "requestFramePermissions": []
 }

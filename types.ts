@@ -57,7 +57,9 @@ export enum AppMode {
   TIME_TOOLS = 'TIME_TOOLS',
   NETWORK_TOOLS = 'NETWORK_TOOLS',
   MARKDOWN_EDITOR = 'MARKDOWN_EDITOR',
-  GITHUB_SEARCH = 'GITHUB_SEARCH'
+  GITHUB_SEARCH = 'GITHUB_SEARCH',
+  AI_TEXT_TOOLS = 'AI_TEXT_TOOLS',
+  VIDEO_EDITOR = 'VIDEO_EDITOR'
 }
 
 // 数据库相关类型
@@ -110,4 +112,15 @@ export interface SearchParams {
   language: string;
   minStars: '' | '100' | '1000' | '10000';
   sort: 'stars' | 'updated' | 'best-match'; // best-match 时 API 不传 sort 参数
+}
+
+export interface VideoSubtitle {
+  id: string;
+  text: string;
+  startTime: number; // 秒
+  endTime: number;   // 秒
+  fontSize: number;
+  x: number; // 0-100，水平位置百分比，50 = 居中
+  y: number; // 0-100，垂直位置百分比，90 = 靠底部
+  color: string;
 }
