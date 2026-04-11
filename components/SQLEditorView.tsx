@@ -17,9 +17,15 @@ import {
   CheckCircle2,
   History,
   Clock,
-  Trash
+  Trash,
+  Copy,
+  Check,
+  BrainCircuit,
+  MessageSquare,
+  Terminal
 } from 'lucide-react';
 import { TableInfo, QueryResult, SQLError } from '../types';
+import { useDeepSeek } from './ai-text/useDeepSeek';
 import {
   initDatabase,
   loadDatabase,
@@ -176,6 +182,13 @@ const SQLEditorView: React.FC = () => {
   const [newColumnType, setNewColumnType] = useState('TEXT');
   const [newColumnNotNull, setNewColumnNotNull] = useState(false);
   const [newColumnDefault, setNewColumnDefault] = useState('');
+
+  // AI 对话相关状态
+  const [editorTab, setEditorTab] = useState<'command' | 'ai'>('command');
+  const [aiQuery, setAiQuery] = useState('');
+  const [aiResult, setAiResult] = useState<string>('');
+  const [aiLoading, setAiLoading] = useState(false);
+  const { call: aiCall, loading: aiApiLoading, error: aiError } = useDeepSeek();
 
   // 保存文件输入框引用（用于 HTTP 环境下的保存）
   const saveFileInputRef = useRef<HTMLInputElement>(null);
@@ -517,6 +530,117 @@ const SQLEditorView: React.FC = () => {
     }
   }, []);
 
+  const handleCopyTableSchema = useCallback(async () => {
+    if (!dbLoaded || tables.length === 0) {
+      setError('数据库中没有表');
+      return;
+    }
+
+    // 构建所有表的 CREATE TABLE SQL
+    const sqlStatements = tables.map(table => {
+      let sql = `CREATE TABLE ${table.name} (\n`;
+      const fieldDefs = table.columns.map(col => {
+        let def = `    ${col.name} ${col.type}`;
+        if (col.primaryKey) {
+          def += ' PRIMARY KEY';
+        }
+        return def;
+      });
+      sql += fieldDefs.join(',\n');
+      sql += '\n);';
+      return sql;
+    });
+
+    const fullSql = sqlStatements.join('\n\n');
+
+    try {
+      await navigator.clipboard.writeText(fullSql);
+      setSuccess(`已复制 ${tables.length} 个表的结构到剪贴板`);
+    } catch (err: any) {
+      setError('复制失败: ' + (err.message || '未知错误'));
+    }
+  }, [dbLoaded, tables]);
+
+  // AI 对话处理函数
+  const handleAIQuery = useCallback(async () => {
+    // 去除注释（支持 # 和 -- 注释语法）
+    let cleanedQuery = aiQuery;
+    // 去除 # 注释（# 到行末）
+    cleanedQuery = cleanedQuery.replace(/#.*$/gm, '');
+    // 去除 -- 注释（-- 到行末）
+    cleanedQuery = cleanedQuery.replace(/--.*$/gm, '');
+    // 去除多余空白
+    cleanedQuery = cleanedQuery.trim();
+
+    if (!cleanedQuery) {
+      setError('请输入查询内容');
+      return;
+    }
+    if (!dbLoaded) {
+      setError('请先导入或创建数据库');
+      return;
+    }
+
+    setAiLoading(true);
+    setAiResult('');
+    setError(null);
+
+    // 获取当前数据库的表结构信息
+    const tableInfo = tables.map(table => {
+      const columns = table.columns.map(col => `${col.name}: ${col.type}${col.primaryKey ? ' (PK)' : ''}`).join(', ');
+      return `表 ${table.name}: [${columns}]`;
+    }).join('\n');
+
+    const systemPrompt = `你是一个SQL数据库助手。我会提供数据库的表结构信息，你需要根据用户的自然语言查询生成对应的SQL语句。
+
+数据库表结构:
+${tableInfo}
+
+规则:
+1. 根据用户的问题生成正确的SQL语句
+2. 只返回SQL语句，使用\`\`\`sql ... \`\`\`格式包裹
+3. 不要添加任何解释性文字
+4. 如果是查询操作，生成SELECT语句
+5. 如果无法生成SQL，请说明原因`;
+
+    try {
+      const defaultModel = localStorage.getItem('default_ai_model') as 'deepseek' | 'qwen' ?? 'deepseek';
+      const response = await aiCall(systemPrompt, cleanedQuery, defaultModel);
+      
+      // 尝试解析并执行SQL
+      const sqlMatch = response.match(/```sql\s*([\s\S]*?)```/);
+      if (sqlMatch) {
+        let sql = sqlMatch[1].trim();
+        // 去除末尾的分号
+        sql = sql.replace(/;\s*$/, '');
+        
+        // 只显示SQL语句
+        setAiResult(sql);
+        
+        if (sql.toUpperCase().startsWith('SELECT') || 
+            sql.toUpperCase().startsWith('PRAGMA') ||
+            sql.toUpperCase().startsWith('SHOW') ||
+            sql.toUpperCase().startsWith('DESCRIBE')) {
+          try {
+            // 尝试执行查询语句
+            const results = executeSQL(sql);
+            setQueryResults(results);
+          } catch (sqlErr: any) {
+            // SQL执行失败，显示错误信息
+            setAiResult(`${sql}\n\n执行失败: ${sqlErr.message}`);
+          }
+        }
+      } else {
+        // 如果没有找到SQL代码块，直接显示回复
+        setAiResult(response);
+      }
+    } catch (err: any) {
+      setError('AI查询失败: ' + (err.message || '未知错误'));
+    } finally {
+      setAiLoading(false);
+    }
+  }, [aiQuery, dbLoaded, tables, aiCall]);
+
   const handleTableSelect = useCallback((tableName: string) => {
     setSelectedTable(tableName);
     localStorage.setItem('sqlEditor_selectedTable', tableName);
@@ -826,6 +950,14 @@ const SQLEditorView: React.FC = () => {
                 导出
               </button>
             </div>
+            <button
+              onClick={handleCopyTableSchema}
+              disabled={!dbLoaded || tables.length === 0}
+              className="w-full mt-2 px-3 py-2 bg-green-100 text-green-700 rounded-lg text-sm font-medium hover:bg-green-200 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Copy className="w-4 h-4" />
+              复制表结构
+            </button>
           </div>
         </div>
 
@@ -1026,34 +1158,102 @@ const SQLEditorView: React.FC = () => {
         {/* SQL 编辑器 */}
         <div className="p-4">
           <div className="bg-white rounded-lg border border-slate-200 shadow-sm">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
-              <div>
-                <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                  <FileJson className="w-4 h-4" />
-                  SQL 编辑器
-                </h3>
-                <p className="text-xs text-slate-400 mt-0.5">支持 # 或 -- 注释语法</p>
-              </div>
+            {/* 编辑器 Tab */}
+            <div className="flex border-b border-slate-200">
               <button
-                onClick={handleExecuteSQL}
-                disabled={!dbLoaded || isExecuting}
-                className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={() => setEditorTab('command')}
+                className={`flex-1 px-4 py-2 text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
+                  editorTab === 'command'
+                    ? 'bg-indigo-50 text-indigo-600 border-b-2 border-indigo-600'
+                    : 'text-slate-600 hover:text-slate-800 hover:bg-slate-50'
+                }`}
               >
-                <Play className="w-4 h-4" />
-                {isExecuting ? '执行中...' : '执行'}
+                <Terminal className="w-4 h-4" />
+                命令
+              </button>
+              <button
+                onClick={() => setEditorTab('ai')}
+                className={`flex-1 px-4 py-2 text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
+                  editorTab === 'ai'
+                    ? 'bg-indigo-50 text-indigo-600 border-b-2 border-indigo-600'
+                    : 'text-slate-600 hover:text-slate-800 hover:bg-slate-50'
+                }`}
+              >
+                <BrainCircuit className="w-4 h-4" />
+                AI 对话
               </button>
             </div>
-            <textarea
-              value={sqlQuery}
-              onChange={(e) => {
-                setSqlQuery(e.target.value);
-                localStorage.setItem('sqlEditor_sqlQuery', e.target.value);
-              }}
-              placeholder={dbLoaded ? "输入 SQL 语句，例如：SELECT * FROM table_name" : "请先导入或创建数据库"}
-              disabled={!dbLoaded}
-              className="w-full h-32 p-4 font-mono text-sm text-slate-700 bg-slate-50 resize-none focus:outline-none focus:bg-white disabled:opacity-50"
-              spellCheck={false}
-            />
+
+            {/* 命令模式 */}
+            {editorTab === 'command' && (
+              <>
+                <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                      <FileJson className="w-4 h-4" />
+                      SQL 编辑器
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-0.5">支持 # 或 -- 注释语法</p>
+                  </div>
+                  <button
+                    onClick={handleExecuteSQL}
+                    disabled={!dbLoaded || isExecuting}
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Play className="w-4 h-4" />
+                    {isExecuting ? '执行中...' : '执行'}
+                  </button>
+                </div>
+                <textarea
+                  value={sqlQuery}
+                  onChange={(e) => {
+                    setSqlQuery(e.target.value);
+                    localStorage.setItem('sqlEditor_sqlQuery', e.target.value);
+                  }}
+                  placeholder={dbLoaded ? "输入 SQL 语句，例如：SELECT * FROM table_name" : "请先导入或创建数据库"}
+                  disabled={!dbLoaded}
+                  className="w-full h-32 p-4 font-mono text-sm text-slate-700 bg-slate-50 resize-none focus:outline-none focus:bg-white disabled:opacity-50"
+                  spellCheck={false}
+                />
+              </>
+            )}
+
+            {/* AI 对话模式 */}
+            {editorTab === 'ai' && (
+              <>
+                <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                      <BrainCircuit className="w-4 h-4" />
+                      AI 自然语言查询
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-0.5">用自然语言描述您想要查询的内容，支持 # 或 -- 注释语法</p>
+                  </div>
+                  <button
+                    onClick={handleAIQuery}
+                    disabled={!dbLoaded || aiLoading || !aiQuery.trim()}
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <MessageSquare className="w-4 h-4" />
+                    {aiLoading ? '思考中...' : '提问'}
+                  </button>
+                </div>
+                <textarea
+                  value={aiQuery}
+                  onChange={(e) => setAiQuery(e.target.value)}
+                  placeholder={dbLoaded ? "例如：查询所有订单金额大于100的客户" : "请先导入或创建数据库"}
+                  disabled={!dbLoaded}
+                  className="w-full h-32 p-4 font-mono text-sm text-slate-700 bg-slate-50 resize-none focus:outline-none focus:bg-white disabled:opacity-50"
+                  spellCheck={false}
+                />
+                {aiResult && (
+                  <div className="px-4 py-3 border-t border-slate-200 bg-slate-50">
+                    <p className="text-xs text-slate-500 mb-2">AI 回复:</p>
+                    <pre className="text-sm text-slate-700 whitespace-pre-wrap font-mono">{aiResult}</pre>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
 

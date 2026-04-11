@@ -141,17 +141,26 @@ export const CopyButton: React.FC<CopyButtonProps> = ({ text }) => {
   );
 };
 
-export const NoKeyTip: React.FC = () => (
-  <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-700">
-    请先配置 DeepSeek API Key。
-    <button
-      onClick={() => window.dispatchEvent(new Event('navigate-to-settings'))}
-      className="ml-1 text-indigo-600 underline"
-    >
-      前往设置
-    </button>
-  </div>
-);
+export const NoKeyTip: React.FC = () => {
+  const hasDeepSeek = !!localStorage.getItem('deepseek_api_key');
+  const hasQwen = !!localStorage.getItem('qwen_api_key');
+  
+  if (hasDeepSeek || hasQwen) {
+    return null; // 如果已有配置，不显示提示
+  }
+  
+  return (
+    <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-700">
+      请先配置 AI 模型的 API Key（支持 DeepSeek 或 Qwen）。
+      <button
+        onClick={() => window.dispatchEvent(new Event('navigate-to-settings'))}
+        className="ml-1 text-indigo-600 underline"
+      >
+        前往设置
+      </button>
+    </div>
+  );
+};
 
 interface ErrorTipProps {
   message: string;
@@ -168,32 +177,33 @@ export const ErrorTip: React.FC<ErrorTipProps> = ({ message, onRetry }) => (
 interface ChatPanelProps {
   systemPrompt: string;
   contextSummary: string;
-  // 当 AI 返回合法 JSON 时，回调更新父组件的 result 状态
-  onUpdate?: (data: unknown) => void;
-  // 撤回上一步修改
-  onUndo?: () => void;
-  canUndo?: boolean;
   // 是否已有分析结果（无结果时禁用输入）
   hasResult?: boolean;
 }
 
-// 在原始 systemPrompt 基础上追加对话模式说明
+// 纯问答对话模式
 function buildChatPrompt(base: string): string {
-  return `${base}
+  return `你是一个智能助手，根据上下文内容回答用户的问题。
+
+上下文：
+${base}
 
 ---
-你现在处于对话模式。规则：
-1. 若用户要求修改、调整、优化分析结果，返回完整的更新后 JSON（格式与上方一致），用 \`\`\`json 包裹。
-2. 若用户只是提问或需要解释，直接用中文回答，不要返回 JSON。`;
+对话规则：
+1. 根据提供的上下文内容回答用户的问题
+2. 只提供反馈、意见和解释，不修改任何内容
+3. 所有回复都用中文，直接回答用户的问题即可
+4. 如果问题与上下文无关，也可以直接回答`;
 }
 
-export const ChatPanel: React.FC<ChatPanelProps> = ({ systemPrompt, contextSummary, onUpdate, onUndo, canUndo, hasResult }) => {
+export const ChatPanel: React.FC<ChatPanelProps> = ({ systemPrompt, contextSummary, hasResult }) => {
   const [input, setInput] = useState('');
   const { messages, send, loading, error } = useDeepSeekChat();
   const bottomRef = useRef<HTMLDivElement>(null);
-  const hasKey = !!localStorage.getItem('deepseek_api_key');
+  const hasKey = !!localStorage.getItem('deepseek_api_key') || !!localStorage.getItem('qwen_api_key');
   const chatPrompt = buildChatPrompt(systemPrompt);
   const inputDisabled = !hasResult || !hasKey || loading;
+  const defaultModel = localStorage.getItem('default_ai_model') as 'deepseek' | 'qwen' ?? 'deepseek';
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -207,17 +217,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ systemPrompt, contextSumma
       chatPrompt,
       text,
       messages.length === 0 ? contextSummary : undefined,
-      (reply) => {
-        // 尝试解析为 JSON，成功则更新左侧结果，显示简短确认
-        try {
-          const cleaned = reply.replace(/```json\n?|```/g, '').trim();
-          const parsed = JSON.parse(cleaned);
-          onUpdate?.(parsed);
-          return '✅ 已根据你的要求更新了分析结果';
-        } catch {
-          return reply;
-        }
-      }
+      (reply) => reply,
+      defaultModel
     );
   };
 
@@ -230,18 +231,9 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ systemPrompt, contextSumma
 
   return (
     <div className="flex flex-col h-full">
-      {/* 顶部操作栏 */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-slate-100 shrink-0">
+      {/* 顶部标题 */}
+      <div className="flex items-center px-4 py-2 border-b border-slate-100 shrink-0">
         <span className="text-xs text-slate-400">AI 对话</span>
-        {canUndo && (
-          <button
-            onClick={onUndo}
-            className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 transition-colors"
-          >
-            <Undo2 className="w-3.5 h-3.5" />
-            撤回修改
-          </button>
-        )}
       </div>
 
       {/* 消息列表 */}

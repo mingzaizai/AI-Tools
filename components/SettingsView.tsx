@@ -1,6 +1,8 @@
 
 import React, { useState } from 'react';
-import { Shield, Key, Cpu, Info, HardDrive, CheckCircle2, BrainCircuit, Loader2, AlertCircle } from 'lucide-react';
+import { Shield, Key, Cpu, Info, HardDrive, CheckCircle2, BrainCircuit, Loader2, AlertCircle, Sparkles, ChevronDown, Eye, EyeOff } from 'lucide-react';
+
+type AIModel = 'deepseek' | 'qwen';
 
 const SettingsView: React.FC = () => {
   const [token, setToken] = useState(localStorage.getItem('github_token') ?? '');
@@ -9,6 +11,24 @@ const SettingsView: React.FC = () => {
   const [dsSaved, setDsSaved] = useState(false);
   const [dsTesting, setDsTesting] = useState(false);
   const [dsTestResult, setDsTestResult] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [dsShowKey, setDsShowKey] = useState(false);
+  
+  // Qwen 相关状态
+  const [qwKey, setQwKey] = useState(localStorage.getItem('qwen_api_key') ?? '');
+  const [qwSaved, setQwSaved] = useState(false);
+  const [qwTesting, setQwTesting] = useState(false);
+  const [qwTestResult, setQwTestResult] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [qwShowKey, setQwShowKey] = useState(false);
+  
+  // 默认模型选择
+  const [selectedModel, setSelectedModel] = useState<AIModel>(localStorage.getItem('default_ai_model') as AIModel ?? 'deepseek');
+  const [modelSaved, setModelSaved] = useState(false);
+  const [showModelDropdown, setShowModelDropdown] = useState(false);
+
+  const modelOptions: { value: AIModel; label: string; color: string }[] = [
+    { value: 'deepseek', label: 'DeepSeek', color: 'indigo' },
+    { value: 'qwen', label: 'Qwen (通义千问)', color: 'orange' },
+  ];
 
   const handleSaveToken = () => {
     if (token.trim()) {
@@ -18,6 +38,13 @@ const SettingsView: React.FC = () => {
     }
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
+  };
+
+  const handleSaveModel = () => {
+    localStorage.setItem('default_ai_model', selectedModel);
+    setModelSaved(true);
+    setShowModelDropdown(false);
+    setTimeout(() => setModelSaved(false), 2000);
   };
 
   const handleSaveDsKey = () => {
@@ -56,7 +83,51 @@ const SettingsView: React.FC = () => {
     }
   };
 
+  // Qwen 保存和测试
+  const handleSaveQwKey = () => {
+    if (qwKey.trim()) {
+      localStorage.setItem('qwen_api_key', qwKey.trim());
+    } else {
+      localStorage.removeItem('qwen_api_key');
+    }
+    setQwSaved(true);
+    setQwTestResult(null);
+    setTimeout(() => setQwSaved(false), 2000);
+  };
+
+  const handleTestQw = async () => {
+    const key = qwKey.trim();
+    if (!key) { setQwTestResult({ ok: false, msg: '请先填写 API Key' }); return; }
+    setQwTesting(true);
+    setQwTestResult(null);
+    try {
+      const res = await fetch('/api/qwen', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+        body: JSON.stringify({ model: 'qwen-turbo', input: { messages: [{ role: 'user', content: 'hi' }] }, parameters: { max_tokens: 1 } }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.output?.text) {
+          setQwTestResult({ ok: true, msg: '连接成功' });
+        } else {
+          setQwTestResult({ ok: false, msg: `响应格式异常: ${JSON.stringify(data)}` });
+        }
+      } else if (res.status === 401) {
+        setQwTestResult({ ok: false, msg: 'API Key 无效（401）' });
+      } else {
+        const text = await res.text();
+        setQwTestResult({ ok: false, msg: `请求失败（${res.status}）: ${text.substring(0, 200)}` });
+      }
+    } catch (err: any) {
+      setQwTestResult({ ok: false, msg: `网络错误: ${err.message || err.toString()}` });
+    } finally {
+      setQwTesting(false);
+    }
+  };
+
   const dsPreview = dsKey.length > 8 ? dsKey.slice(0, 8) + '****' : dsKey ? '****' : '';
+  const qwPreview = qwKey.length > 8 ? qwKey.slice(0, 8) + '****' : qwKey ? '****' : '';
 
   return (
     <div className="h-full overflow-y-auto bg-[#f8fafc] p-8 md:p-12">
@@ -74,6 +145,52 @@ const SettingsView: React.FC = () => {
               title="硬件加速"
               description="已启用 WebGL 和 Canvas 硬件加速，以获得流畅的编辑体验。"
             />
+            {/* 默认 AI 模型选择 */}
+            <div className="flex items-start gap-4 p-5 bg-white rounded-2xl border border-slate-200">
+              <div className="p-2 bg-slate-100 rounded-xl shrink-0">
+                <Cpu className="text-blue-600 w-5 h-5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-sm font-bold text-slate-800 mb-1">默认 AI 模型</h3>
+                <p className="text-xs text-slate-500 leading-relaxed mb-3">
+                  选择"AI 文本审查"模块使用的默认模型。
+                </p>
+                <div className="flex gap-2 flex-wrap">
+                  {/* 下拉选择框 */}
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowModelDropdown(!showModelDropdown)}
+                      className="px-3 py-1.5 text-xs border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 transition-colors flex items-center gap-1.5 min-w-[140px] justify-between"
+                    >
+                      {modelOptions.find(m => m.value === selectedModel)?.label}
+                      <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showModelDropdown ? 'rotate-180' : ''}`} />
+                    </button>
+                    {showModelDropdown && (
+                      <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-10 min-w-[140px]">
+                        {modelOptions.map((option) => (
+                          <button
+                            key={option.value}
+                            onClick={() => setSelectedModel(option.value)}
+                            className={`w-full px-3 py-2 text-left text-xs hover:bg-slate-50 flex items-center gap-2 ${
+                              selectedModel === option.value ? 'bg-slate-50 font-bold' : ''
+                            }`}
+                          >
+                            <span className={`w-2 h-2 rounded-full ${option.color === 'indigo' ? 'bg-indigo-500' : 'bg-orange-500'}`} />
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    onClick={handleSaveModel}
+                    className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-1.5"
+                  >
+                    {modelSaved ? <><CheckCircle2 className="w-3.5 h-3.5" />已保存</> : '保存'}
+                  </button>
+                </div>
+              </div>
+            </div>
             {/* DeepSeek API Key 配置 */}
             <div className="flex items-start gap-4 p-5 bg-white rounded-2xl border border-slate-200">
               <div className="p-2 bg-slate-100 rounded-xl shrink-0">
@@ -90,13 +207,21 @@ const SettingsView: React.FC = () => {
                   {dsPreview && <span className="ml-2 text-slate-400">当前：{dsPreview}</span>}
                 </p>
                 <div className="flex gap-2 flex-wrap">
-                  <input
-                    type="password"
-                    value={dsKey}
-                    onChange={e => { setDsKey(e.target.value); setDsTestResult(null); }}
-                    placeholder="sk-xxxxxxxxxxxx"
-                    className="flex-1 min-w-0 px-3 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                  />
+                  <div className="relative flex-1 min-w-0">
+                    <input
+                      type={dsShowKey ? 'text' : 'password'}
+                      value={dsKey}
+                      onChange={e => { setDsKey(e.target.value); setDsTestResult(null); }}
+                      placeholder="sk-xxxxxxxxxxxx"
+                      className="w-full px-3 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 pr-8"
+                    />
+                    <button
+                      onClick={() => setDsShowKey(!dsShowKey)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                    >
+                      {dsShowKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
                   <button
                     onClick={handleTestDs}
                     disabled={dsTesting}
@@ -116,6 +241,60 @@ const SettingsView: React.FC = () => {
                   <div className={`mt-2 flex items-center gap-1.5 text-xs ${dsTestResult.ok ? 'text-green-600' : 'text-red-500'}`}>
                     {dsTestResult.ok ? <CheckCircle2 className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
                     {dsTestResult.msg}
+                  </div>
+                )}
+              </div>
+            </div>
+            {/* Qwen API Key 配置 */}
+            <div className="flex items-start gap-4 p-5 bg-white rounded-2xl border border-slate-200">
+              <div className="p-2 bg-slate-100 rounded-xl shrink-0">
+                <Sparkles className="text-orange-500 w-5 h-5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-sm font-bold text-slate-800 mb-1">Qwen (通义千问) API Key</h3>
+                <p className="text-xs text-slate-500 leading-relaxed mb-3">
+                  用于"AI 文本审查"模块。在{' '}
+                  <a href="https://dashscope.aliyun.com/" target="_blank" rel="noopener noreferrer" className="text-indigo-600 underline">
+                    阿里云 DashScope
+                  </a>{' '}
+                  创建 API Key。
+                  {qwPreview && <span className="ml-2 text-slate-400">当前：{qwPreview}</span>}
+                </p>
+                <div className="flex gap-2 flex-wrap">
+                  <div className="relative flex-1 min-w-0">
+                    <input
+                      type={qwShowKey ? 'text' : 'password'}
+                      value={qwKey}
+                      onChange={e => { setQwKey(e.target.value); setQwTestResult(null); }}
+                      placeholder="sk-xxxxxxxxxxxx"
+                      className="w-full px-3 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 pr-8"
+                    />
+                    <button
+                      onClick={() => setQwShowKey(!qwShowKey)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                    >
+                      {qwShowKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  <button
+                    onClick={handleTestQw}
+                    disabled={qwTesting}
+                    className="px-3 py-1.5 text-xs border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                  >
+                    {qwTesting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                    测试连接
+                  </button>
+                  <button
+                    onClick={handleSaveQwKey}
+                    className="px-3 py-1.5 text-xs bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors flex items-center gap-1.5"
+                  >
+                    {qwSaved ? <><CheckCircle2 className="w-3.5 h-3.5" />已保存</> : '保存'}
+                  </button>
+                </div>
+                {qwTestResult && (
+                  <div className={`mt-2 flex items-center gap-1.5 text-xs ${qwTestResult.ok ? 'text-green-600' : 'text-red-500'}`}>
+                    {qwTestResult.ok ? <CheckCircle2 className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
+                    {qwTestResult.msg}
                   </div>
                 )}
               </div>

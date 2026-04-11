@@ -15,13 +15,18 @@ interface ContractResult {
   risks: Risk[];
 }
 
-const SYSTEM_PROMPT = `你是专业合同法律顾问。请审查合同文本，返回严格的 JSON：
+const SYSTEM_PROMPT = `你是专业合同法律顾问。请审查合同文本，识别潜在风险并提供具体的修改建议。返回严格的 JSON：
 {
   "score": 0-100整数,
   "summary": "整体风险摘要",
-  "risks": [{ "level": "high|medium|low", "clause": "条款摘要", "description": "风险描述", "suggestion": "修改建议" }]
+  "risks": [{ "level": "high|medium|low", "clause": "条款摘要", "description": "风险描述", "suggestion": "具体的修改建议，包括推荐的文本内容" }]
 }
-只返回 JSON，不要其他内容。`;
+
+要求：
+1. suggestion 字段必须给出具体、可操作的修改建议，包括推荐使用的具体文本内容
+2. 对于模糊或缺失的条款，提供合理的默认值和文本表述
+3. 确保建议符合《中华人民共和国民法典》相关规定
+4. 只返回 JSON，不要其他内容。`;
 
 const LEVEL_STYLE: Record<string, string> = {
   high: 'bg-red-100 text-red-700 border-red-200',
@@ -32,16 +37,88 @@ const LEVEL_LABEL: Record<string, string> = { high: '高风险', medium: '中风
 const LEVELS = ['high', 'medium', 'low'] as const;
 
 const ContractReviewView: React.FC = () => {
-  const [input, setInput] = useState('');
+  const [input, setInput] = useState(`房屋租赁合同 (范本)
+
+出租方（甲方）： ____________________
+
+承租方（乙房）： ____________________
+
+根据《中华人民共和国民法典》及相关法律法规，甲、乙双方在平等、自愿的基础上，就房屋租赁事宜达成如下协议：
+
+第一条 房屋基本情况
+房屋地址： 位于________________________________________________。
+
+房屋面积： 建筑面积约_______平方米。
+
+第二条 租赁期限
+租赁期共_______个月，自_______年_____月_____日起至_______年_____月_____日止。
+
+租赁期满，甲方有权收回房屋，乙方应如期交还。乙方如需续租，应提前_______日通知甲方。
+
+第三条 租金及支付方式
+租金标准： 每月租金为人民币（大写）______元（￥）。
+
+支付方式： □月付 / □季付 / □半年付。
+
+支付时间： 乙方应于每期租赁期开始前的_______日内将租金支付给甲方。
+
+第四条 押金
+本合同签订之日，乙方应向甲方支付押金人民币（大写）______元（￥）。
+
+租赁期满或合同解除后，乙方结清相关费用（水、电、燃气、物业费等）并交还房屋后，甲方应将押金全额无息退还给乙方。
+
+第五条 相关费用承担
+租赁期间，因使用房屋所产生的下列费用由乙方承担：
+
+水、电、煤气/天然气费；
+
+物业管理费、清扫费；
+
+宽带及有线电视费。
+
+第六条 房屋维护与装修
+甲方应保证房屋结构安全。
+
+乙方在租赁期间不得擅自改变房屋结构。如需装修或安装大型设备，须征得甲方书面同意。
+
+因乙方使用不当导致房屋及其附属设施损坏的，由乙方负责赔偿或维修。
+
+第七条 合同解除与违约责任
+甲方违约： 若甲方提前收回房屋或未按约定提供房屋，需双倍返还押金并赔偿乙方损失。
+
+乙方违约： 若乙方逾期支付租金超过_______日，或擅自转租房屋，甲方有权解除合同并没收押金。
+
+提前终止： 任何一方需提前终止合同，应提前_______日通知对方，并支付相当于_______个月租金的违约金。
+
+第八条 免责条件
+因不可抗力（如地震、火灾、政府拆迁等）导致合同无法履行的，本合同自动终止，双方互不承担违约责任。
+
+第九条 其他约定
+本合同未尽事宜，由双方协商解决，可签署补充协议。
+
+本合同一式两份，甲、乙双方各执一份，自签字/盖章之日起生效。
+
+甲方（签字）： ____________________
+
+联系电话： ____________________
+
+日期： _______年_____月_____日
+
+乙方（签字）： ____________________
+
+联系电话： ____________________
+
+日期： _______年_____月_____日`);
   const [result, setResult] = useState<ContractResult | null>(null);
   const [history, setHistory] = useState<ContractResult[]>([]);
   const [analysisKey, setAnalysisKey] = useState(0);
   const { call, loading, error } = useDeepSeek();
-  const hasKey = !!localStorage.getItem('deepseek_api_key');
+  const hasKey = !!localStorage.getItem('deepseek_api_key') || !!localStorage.getItem('qwen_api_key');
+  const defaultModel = localStorage.getItem('default_ai_model') as 'deepseek' | 'qwen' ?? 'deepseek';
 
   const handleAnalyze = async () => {
     try {
-      const raw = await call(SYSTEM_PROMPT, input);
+      const raw = await call(SYSTEM_PROMPT, input, defaultModel);
       const json = raw.replace(/```json\n?|```/g, '').trim();
       setResult(JSON.parse(json));
       setHistory([]);

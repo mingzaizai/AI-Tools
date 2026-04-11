@@ -31,7 +31,7 @@ export async function initDatabase(): Promise<void> {
     } catch (error) {
       console.error('Failed to initialize sql.js:', error);
       SQL = null;
-      initPromise = null;
+      initPromise = null; // 修复：初始化失败时重置 initPromise
       throw new Error(`sql.js 初始化失败: ${error instanceof Error ? error.message : '未知错误'}`);
     }
   })();
@@ -152,10 +152,11 @@ export function executeSQL(sql: string, maxRows: number = 5000): QueryResult[] {
   }
   
   try {
-    // 检查是否需要添加 LIMIT
+    // 检查是否需要添加 LIMIT（更健壮的检测逻辑）
     const trimmedSql = sql.trim().toUpperCase();
     const isSelect = trimmedSql.startsWith('SELECT');
-    const hasLimit = /\bLIMIT\s+\d+/i.test(sql);
+    // 检测是否已经包含 LIMIT 关键字（不要求后面必须有数字）
+    const hasLimit = trimmedSql.includes(' LIMIT ');
     
     let finalSql = sql;
     if (isSelect && !hasLimit) {

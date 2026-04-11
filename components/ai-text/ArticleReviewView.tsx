@@ -31,11 +31,12 @@ const ArticleReviewView: React.FC = () => {
   const [history, setHistory] = useState<ArticleResult[]>([]);
   const [analysisKey, setAnalysisKey] = useState(0);
   const { call, loading, error } = useDeepSeek();
-  const hasKey = !!localStorage.getItem('deepseek_api_key');
+  const hasKey = !!localStorage.getItem('deepseek_api_key') || !!localStorage.getItem('qwen_api_key');
+  const defaultModel = localStorage.getItem('default_ai_model') as 'deepseek' | 'qwen' ?? 'deepseek';
 
   const handleAnalyze = async () => {
     try {
-      const raw = await call(buildSystemPrompt('both'), input);
+      const raw = await call(buildSystemPrompt('both'), input, defaultModel);
       const json = raw.replace(/```json\n?|```/g, '').trim();
       setResult(JSON.parse(json));
       setHistory([]);

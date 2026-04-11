@@ -11,6 +11,18 @@ export default defineConfig(({ mode }) => {
         headers: {
           'Cross-Origin-Opener-Policy': 'same-origin',
           'Cross-Origin-Embedder-Policy': 'credentialless'
+        },
+        proxy: {
+          '/api/qwen': {
+            target: 'https://dashscope.aliyuncs.com',
+            changeOrigin: true,
+            rewrite: (path) => path.replace(/^\/api\/qwen/, '/api/v1/services/aigc/text-generation/generation')
+          },
+          '/api/deepseek': {
+            target: 'https://api.deepseek.com',
+            changeOrigin: true,
+            rewrite: (path) => path.replace(/^\/api\/deepseek/, '/v1')
+          }
         }
       },
       plugins: [react()],
