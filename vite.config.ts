@@ -22,6 +22,11 @@ export default defineConfig(({ mode }) => {
             target: 'https://api.deepseek.com',
             changeOrigin: true,
             rewrite: (path) => path.replace(/^\/api\/deepseek/, '/v1')
+          },
+          '/api/wanxiang': {
+            target: 'https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation',
+            changeOrigin: true,
+            rewrite: (path) => path.replace(/^\/api\/wanxiang\/text2image/, '')
           }
         }
       },

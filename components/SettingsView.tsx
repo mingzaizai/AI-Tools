@@ -20,6 +20,14 @@ const SettingsView: React.FC = () => {
   const [qwTestResult, setQwTestResult] = useState<{ ok: boolean; msg: string } | null>(null);
   const [qwShowKey, setQwShowKey] = useState(false);
   
+  // 通义万相相关状态
+  const [wxKey, setWxKey] = useState(localStorage.getItem('wanxiang_api_key') ?? '');
+  const [wxSaved, setWxSaved] = useState(false);
+  const [wxTesting, setWxTesting] = useState(false);
+  const [wxTestResult, setWxTestResult] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [wxShowKey, setWxShowKey] = useState(false);
+  const [useQwKey, setUseQwKey] = useState(localStorage.getItem('wanxiang_use_qw_key') === 'true');
+  
   // 默认模型选择
   const [selectedModel, setSelectedModel] = useState<AIModel>(localStorage.getItem('default_ai_model') as AIModel ?? 'deepseek');
   const [modelSaved, setModelSaved] = useState(false);
@@ -123,6 +131,78 @@ const SettingsView: React.FC = () => {
       setQwTestResult({ ok: false, msg: `网络错误: ${err.message || err.toString()}` });
     } finally {
       setQwTesting(false);
+    }
+  };
+
+  // 通义万相保存和测试
+  const handleSaveWxKey = () => {
+    localStorage.setItem('wanxiang_use_qw_key', useQwKey.toString());
+    if (!useQwKey) {
+      if (wxKey.trim()) {
+        localStorage.setItem('wanxiang_api_key', wxKey.trim());
+      } else {
+        localStorage.removeItem('wanxiang_api_key');
+      }
+    } else {
+      localStorage.removeItem('wanxiang_api_key');
+    }
+    setWxSaved(true);
+    setWxTestResult(null);
+    setTimeout(() => setWxSaved(false), 2000);
+  };
+
+  const handleTestWx = async () => {
+    const key = useQwKey ? qwKey.trim() : wxKey.trim();
+    if (!key) { 
+      setWxTestResult({ ok: false, msg: '请先填写 API Key' }); 
+      return; 
+    }
+    setWxTesting(true);
+    setWxTestResult(null);
+    try {
+      const res = await fetch('/api/wanxiang/text2image', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json', 
+          Authorization: `Bearer ${key}` 
+        },
+        body: JSON.stringify({ 
+          model: 'qwen-image-2.0-pro',
+          input: {
+            messages: [
+              {
+                role: 'user',
+                content: [
+                  { text: '测试图片' }
+                ]
+              }
+            ]
+          },
+          parameters: {
+            n: 1,
+            size: '512*512',
+            watermark: false
+          }
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        // 检查响应格式是否正确（通义万相返回 choices 数组）
+        if (data.output?.choices?.length > 0) {
+          setWxTestResult({ ok: true, msg: '连接成功' });
+        } else {
+          setWxTestResult({ ok: false, msg: `响应格式异常: ${JSON.stringify(data)}` });
+        }
+      } else if (res.status === 401) {
+        setWxTestResult({ ok: false, msg: 'API Key 无效（401）' });
+      } else {
+        const text = await res.text();
+        setWxTestResult({ ok: false, msg: `请求失败（${res.status}）: ${text.substring(0, 200)}` });
+      }
+    } catch (err: any) {
+      setWxTestResult({ ok: false, msg: `网络错误: ${err.message || err.toString()}` });
+    } finally {
+      setWxTesting(false);
     }
   };
 
@@ -295,6 +375,84 @@ const SettingsView: React.FC = () => {
                   <div className={`mt-2 flex items-center gap-1.5 text-xs ${qwTestResult.ok ? 'text-green-600' : 'text-red-500'}`}>
                     {qwTestResult.ok ? <CheckCircle2 className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
                     {qwTestResult.msg}
+                  </div>
+                )}
+              </div>
+            </div>
+            {/* 通义万相 API Key 配置 */}
+            <div className="flex items-start gap-4 p-5 bg-white rounded-2xl border border-slate-200">
+              <div className="p-2 bg-slate-100 rounded-xl shrink-0">
+                <Sparkles className="text-purple-500 w-5 h-5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-sm font-bold text-slate-800 mb-1">通义万相 API Key</h3>
+                <p className="text-xs text-slate-500 leading-relaxed mb-3">
+                  用于"图片编辑"模块的AI换装/生成功能。在{' '}
+                  <a href="https://dashscope.aliyun.com/" target="_blank" rel="noopener noreferrer" className="text-indigo-600 underline">
+                    阿里云 DashScope
+                  </a>{' '}
+                  创建 API Key。
+                </p>
+                {/* 使用Qwen Key开关 */}
+                <div className="flex items-center gap-2 mb-3">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={useQwKey}
+                      onChange={(e) => setUseQwKey(e.target.checked)}
+                      className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
+                    />
+                    <span className="text-xs text-slate-600">使用 Qwen 的 API Key</span>
+                  </label>
+                </div>
+                {!useQwKey && (
+                  <div className="flex gap-2 flex-wrap">
+                    <div className="relative flex-1 min-w-0">
+                      <input
+                        type={wxShowKey ? 'text' : 'password'}
+                        value={wxKey}
+                        onChange={e => { setWxKey(e.target.value); setWxTestResult(null); }}
+                        placeholder="sk-xxxxxxxxxxxx"
+                        className="w-full px-3 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 pr-8"
+                      />
+                      <button
+                        onClick={() => setWxShowKey(!wxShowKey)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                      >
+                        {wxShowKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                    <button
+                      onClick={handleTestWx}
+                      disabled={wxTesting}
+                      className="px-3 py-1.5 text-xs border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                    >
+                      {wxTesting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                      测试连接
+                    </button>
+                    <button
+                      onClick={handleSaveWxKey}
+                      className="px-3 py-1.5 text-xs bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors flex items-center gap-1.5"
+                    >
+                      {wxSaved ? <><CheckCircle2 className="w-3.5 h-3.5" />已保存</> : '保存'}
+                    </button>
+                  </div>
+                )}
+                {useQwKey && (
+                  <div className="flex gap-2 flex-wrap">
+                    <span className="text-xs text-slate-400">将使用 Qwen 的 API Key</span>
+                    <button
+                      onClick={handleSaveWxKey}
+                      className="px-3 py-1.5 text-xs bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors flex items-center gap-1.5"
+                    >
+                      {wxSaved ? <><CheckCircle2 className="w-3.5 h-3.5" />已保存</> : '保存'}
+                    </button>
+                  </div>
+                )}
+                {wxTestResult && (
+                  <div className={`mt-2 flex items-center gap-1.5 text-xs ${wxTestResult.ok ? 'text-green-600' : 'text-red-500'}`}>
+                    {wxTestResult.ok ? <CheckCircle2 className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
+                    {wxTestResult.msg}
                   </div>
                 )}
               </div>

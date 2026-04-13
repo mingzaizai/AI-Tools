@@ -24,10 +24,10 @@ const AITextToolsView: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabId>('spell');
 
   const tabClass = (id: TabId) =>
-    `px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer ${
+    `px-4 py-2 text-sm font-medium rounded-lg transition-all cursor-pointer ${
       activeTab === id
         ? 'bg-indigo-600 text-white'
-        : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100'
+        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
     }`;
 
   return (

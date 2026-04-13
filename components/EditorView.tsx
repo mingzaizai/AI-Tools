@@ -17,16 +17,20 @@ import {
   Type as TypeIcon,
   Plus,
   Trash2,
-  Move
+  Move,
+  BrainCircuit,
+  MessageSquare
 } from 'lucide-react';
 
 import { ImageData, ImageFilters, ImageTransform, TextOverlay } from '../types';
 import { DEFAULT_FILTERS, DEFAULT_TRANSFORM, FILTER_PRESETS } from '../constants';
+import { useDeepSeek } from './ai-text/useDeepSeek';
 
 interface EditorState {
   filters: ImageFilters;
   transform: ImageTransform;
   texts: TextOverlay[];
+  imageData?: string | null;
 }
 
 interface EditorViewProps {
@@ -39,13 +43,100 @@ const EditorView: React.FC<EditorViewProps> = ({ image, onClose }) => {
   const [transform, setTransform] = useState<ImageTransform>(DEFAULT_TRANSFORM);
   const [texts, setTexts] = useState<TextOverlay[]>([]);
   const [history, setHistory] = useState<EditorState[]>([]);
-  const [activeTab, setActiveTab] = useState<'adjust' | 'presets' | 'text' | 'color'>('adjust');
+  const [activeTab, setActiveTab] = useState<'adjust' | 'presets' | 'text' | 'color' | 'ai'>('adjust');
   const [pickedColor, setPickedColor] = useState<string | null>(null);
   const [pickedColorRGB, setPickedColorRGB] = useState<string | null>(null);
   const [pickedColorHSL, setPickedColorHSL] = useState<string | null>(null);
   const [copyFeedback, setCopyFeedback] = useState(false);
   const [isCropMode, setIsCropMode] = useState(false);
   const [activeTextId, setActiveTextId] = useState<string | null>(null);
+  
+  // AI对话相关状态
+  const [aiQuery, setAiQuery] = useState('');
+  const [aiResult, setAiResult] = useState('');
+  const [aiLoading, setAiLoading] = useState(false);
+  const { call: aiCall } = useDeepSeek();
+  
+  // 通义万相API调用
+  const callWanxiang = useCallback(async (prompt: string, imageData?: string, width?: number, height?: number) => {
+    const useQwKey = localStorage.getItem('wanxiang_use_qw_key') === 'true';
+    const apiKey = useQwKey 
+      ? localStorage.getItem('qwen_api_key') 
+      : localStorage.getItem('wanxiang_api_key');
+    
+    if (!apiKey) {
+      throw new Error('请先在设置中配置通义万相 API Key');
+    }
+    
+    const content: Record<string, any>[] = [{ text: prompt }];
+    
+    // 如果有图片数据，添加到content中（image2image模式）
+    if (imageData) {
+      content.unshift({ image: `data:image/png;base64,${imageData}` });
+    }
+    
+    // 使用原始图片尺寸，如果没有则使用默认尺寸
+    let size = '512*512';
+    if (width && height) {
+      // 确保尺寸在API允许范围内
+      const maxSize = Math.max(width, height);
+      if (maxSize <= 1024) {
+        size = `${width}*${height}`;
+      } else {
+        // 如果超过最大尺寸，按比例缩小
+        const scale = 1024 / maxSize;
+        size = `${Math.floor(width * scale)}*${Math.floor(height * scale)}`;
+      }
+    }
+    
+    const body: Record<string, any> = {
+      model: 'qwen-image-2.0-pro',
+      input: {
+        messages: [
+          {
+            role: 'user',
+            content: content
+          }
+        ]
+      },
+      parameters: {
+        n: 1,
+        size: size,
+        watermark: false
+      }
+    };
+    
+    const res = await fetch('/api/wanxiang/text2image', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`
+      },
+      body: JSON.stringify(body)
+    });
+    
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`请求失败（${res.status}）: ${text}`);
+    }
+    
+    const data = await res.json();
+    // 通义万相API响应格式：output.choices[0].message.content 中包含图片URL
+    const imageUrl = data.output?.choices?.[0]?.message?.content?.find((c: any) => c.image)?.image;
+    if (imageUrl) {
+      // 下载图片并转换为base64
+      const imageRes = await fetch(imageUrl);
+      const blob = await imageRes.blob();
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result?.toString().split(',')[1] || '');
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    } else {
+      throw new Error('响应格式异常');
+    }
+  }, []);
   
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
@@ -62,10 +153,15 @@ const EditorView: React.FC<EditorViewProps> = ({ image, onClose }) => {
   }, [image]);
 
   const saveToHistory = useCallback(() => {
+    // 保存当前图片的base64数据
+    const canvas = canvasRef.current;
+    const imageData = canvas ? canvas.toDataURL('image/png') : null;
+    
     setHistory(prev => [...prev.slice(-19), { 
       filters: JSON.parse(JSON.stringify(filters)), 
       transform: JSON.parse(JSON.stringify(transform)),
-      texts: JSON.parse(JSON.stringify(texts))
+      texts: JSON.parse(JSON.stringify(texts)),
+      imageData: imageData
     }]);
   }, [filters, transform, texts]);
 
@@ -76,7 +172,115 @@ const EditorView: React.FC<EditorViewProps> = ({ image, onClose }) => {
     setTransform(last.transform);
     setTexts(last.texts);
     setHistory(prev => prev.slice(0, -1));
+    
+    // 如果有保存的图片数据，恢复图片
+    if (last.imageData) {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.src = last.imageData;
+      img.onload = () => {
+        imgRef.current = img;
+        renderImage();
+      };
+    }
   };
+
+  // AI换装功能 - 使用通义万相API
+  const handleAIEdit = useCallback(async () => {
+    if (!aiQuery.trim()) {
+      return;
+    }
+    
+    setAiLoading(true);
+    setAiResult('');
+    
+    try {
+      // 获取当前图片的base64数据
+      const canvas = canvasRef.current;
+      if (!canvas) {
+        throw new Error('无法获取当前图片');
+      }
+      
+      const imageData = canvas.toDataURL('image/png').split(',')[1];
+      
+      // 获取当前图片尺寸
+      const currentImg = imgRef.current;
+      const width = currentImg ? currentImg.width : canvas.width;
+      const height = currentImg ? currentImg.height : canvas.height;
+      
+      // 调用通义万相API进行图像变换（换装）
+      const resultImage = await callWanxiang(aiQuery, imageData, width, height);
+      
+      // 保存当前状态到历史记录（支持撤销）
+      saveToHistory();
+      
+      // 直接应用生成的图片到画布
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.src = `data:image/png;base64,${resultImage}`;
+      img.onload = () => {
+        imgRef.current = img;
+        // 重置滤镜和变换参数
+        setFilters({
+          brightness: 100,
+          contrast: 100,
+          saturation: 100,
+          blur: 0,
+          sepia: 0,
+          grayscale: 0,
+          hueRotate: 0,
+          borderRadius: 0
+        });
+        setTransform({
+          rotate: 0,
+          scaleX: 1,
+          scaleY: 1,
+          flipX: false,
+          flipY: false,
+          crop: { top: 0, left: 0, right: 0, bottom: 0 }
+        });
+        setTexts([]);
+        // 使用 setTimeout 确保状态更新后再调用渲染
+        setTimeout(() => {
+          const renderFn = () => {
+            const canvasEl = canvasRef.current;
+            const imgEl = imgRef.current;
+            if (!canvasEl || !imgEl) return;
+
+            const ctx = canvasEl.getContext('2d', { willReadFrequently: true });
+            if (!ctx) return;
+
+            const { crop } = { rotate: 0, scaleX: 1, scaleY: 1, flipX: false, flipY: false, crop: { top: 0, left: 0, right: 0, bottom: 0 } };
+            const sWidth = imgEl.width * (1 - (crop.left + crop.right) / 100);
+            const sHeight = imgEl.height * (1 - (crop.top + crop.bottom) / 100);
+            const sx = imgEl.width * (crop.left / 100);
+            const sy = imgEl.height * (crop.top / 100);
+
+            const isRotated = 0 % 180 !== 0;
+            canvasEl.width = isRotated ? sHeight : sWidth;
+            canvasEl.height = isRotated ? sWidth : sHeight;
+
+            ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
+            ctx.save();
+            ctx.translate(canvasEl.width / 2, canvasEl.height / 2);
+            ctx.rotate((0 * Math.PI) / 180);
+            ctx.scale(1, 1);
+
+            ctx.filter = 'brightness(100%) contrast(100%) saturate(100%) blur(0px) sepia(0%) grayscale(0%) hue-rotate(0deg)';
+            ctx.drawImage(imgEl, sx, sy, sWidth, sHeight, -sWidth / 2, -sHeight / 2, sWidth, sHeight);
+            ctx.restore();
+          };
+          renderFn();
+        }, 0);
+        setAiResult('图片生成成功！可使用撤销按钮恢复到上一步。');
+      };
+      
+    } catch (error: any) {
+      setAiResult(`生成失败: ${error.message}`);
+    } finally {
+      setAiLoading(false);
+    }
+  }, [aiQuery, callWanxiang, saveToHistory]);
 
   const getFilterString = (f: ImageFilters) => {
     return `
@@ -289,6 +493,7 @@ const EditorView: React.FC<EditorViewProps> = ({ image, onClose }) => {
           <TabButton active={activeTab === 'presets'} onClick={() => setActiveTab('presets')} icon={<Grid />} label="模板" />
           <TabButton active={activeTab === 'text'} onClick={() => setActiveTab('text')} icon={<TypeIcon />} label="文字" />
           <TabButton active={activeTab === 'color'} onClick={() => setActiveTab('color')} icon={<Pipette />} label="取色" />
+          <TabButton active={activeTab === 'ai'} onClick={() => setActiveTab('ai')} icon={<BrainCircuit />} label="AI编辑" />
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-8">
@@ -386,6 +591,52 @@ const EditorView: React.FC<EditorViewProps> = ({ image, onClose }) => {
               <button onClick={() => { if (!pickedColor) return; navigator.clipboard.writeText(pickedColor); setCopyFeedback(true); setTimeout(() => setCopyFeedback(false), 2000); }} disabled={!pickedColor} className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 rounded-xl text-xs font-bold flex items-center justify-center gap-2 text-white w-full">
                 {copyFeedback ? <CheckCircle2 className="w-4 h-4" /> : <Copy className="w-4 h-4" />} 复制 HEX 值
               </button>
+            </div>
+          )}
+
+          {activeTab === 'ai' && (
+            <div className="space-y-6">
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                  <BrainCircuit className="w-4 h-4" />
+                  AI 换装生成
+                </h3>
+                <p className="text-xs text-slate-400">使用通义万相API，通过自然语言描述进行图片变换，支持换装等功能</p>
+              </div>
+              
+              <div className="space-y-3">
+                <textarea
+                  value={aiQuery}
+                  onChange={(e) => setAiQuery(e.target.value)}
+                  placeholder="例如：把衣服换成红色连衣裙，保持人物姿势不变"
+                  rows={4}
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                />
+                <button
+                  onClick={handleAIEdit}
+                  disabled={!aiQuery.trim() || aiLoading}
+                  className="w-full px-4 py-2.5 bg-purple-600 hover:bg-purple-700 disabled:bg-slate-300 text-white rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition-colors"
+                >
+                  <MessageSquare className="w-4 h-4" />
+                  {aiLoading ? '生成中...' : '生成图片'}
+                </button>
+              </div>
+              
+              {aiResult && (
+                  <div className="mt-4 p-3 bg-slate-50 rounded-xl">
+                    <p className={`text-xs ${aiResult.includes('失败') ? 'text-red-700' : 'text-indigo-700'}`}>{aiResult}</p>
+                  </div>
+                )}
+                
+                <div className="pt-4 border-t border-slate-200">
+                  <h4 className="text-[10px] font-black text-slate-500 uppercase mb-3">使用提示</h4>
+                  <div className="space-y-2 text-xs text-slate-500">
+                  <p>• 换装：把人物衣服换成蓝色西装</p>
+                  <p>• 风格转换：将图片转换为油画风格</p>
+                  <p>• 添加元素：在图片中添加一只猫</p>
+                  <p>• 背景替换：将背景换成海滩</p>
+                </div>
+              </div>
             </div>
           )}
         </div>
