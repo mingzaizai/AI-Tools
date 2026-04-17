@@ -58,54 +58,30 @@ const EditorView: React.FC<EditorViewProps> = ({ image, onClose }) => {
   const { call: aiCall } = useDeepSeek();
   
   // 通义万相API调用
-  const callWanxiang = useCallback(async (prompt: string, imageData?: string, width?: number, height?: number) => {
+  const callWanxiang = useCallback(async (prompt: string, imageData?: string) => {
     const useQwKey = localStorage.getItem('wanxiang_use_qw_key') === 'true';
-    const apiKey = useQwKey 
-      ? localStorage.getItem('qwen_api_key') 
+    const rawKey = useQwKey
+      ? localStorage.getItem('qwen_api_key')
       : localStorage.getItem('wanxiang_api_key');
-    
+    const apiKey = rawKey?.replace(/[^\x20-\x7E]/g, '') || null;
+
     if (!apiKey) {
       throw new Error('请先在设置中配置通义万相 API Key');
     }
     
     const content: Record<string, any>[] = [{ text: prompt }];
-    
-    // 如果有图片数据，添加到content中（image2image模式）
     if (imageData) {
       content.unshift({ image: `data:image/png;base64,${imageData}` });
     }
-    
-    // 使用原始图片尺寸，如果没有则使用默认尺寸
-    let size = '512*512';
-    if (width && height) {
-      // 确保尺寸在API允许范围内
-      const maxSize = Math.max(width, height);
-      if (maxSize <= 1024) {
-        size = `${width}*${height}`;
-      } else {
-        // 如果超过最大尺寸，按比例缩小
-        const scale = 1024 / maxSize;
-        size = `${Math.floor(width * scale)}*${Math.floor(height * scale)}`;
-      }
-    }
-    
+
     const body: Record<string, any> = {
       model: 'qwen-image-2.0-pro',
       input: {
-        messages: [
-          {
-            role: 'user',
-            content: content
-          }
-        ]
+        messages: [{ role: 'user', content }]
       },
-      parameters: {
-        n: 1,
-        size: size,
-        watermark: false
-      }
+      parameters: { n: 1, watermark: false }
     };
-    
+
     const res = await fetch('/api/wanxiang/text2image', {
       method: 'POST',
       headers: {
@@ -114,17 +90,15 @@ const EditorView: React.FC<EditorViewProps> = ({ image, onClose }) => {
       },
       body: JSON.stringify(body)
     });
-    
+
     if (!res.ok) {
       const text = await res.text();
       throw new Error(`请求失败（${res.status}）: ${text}`);
     }
-    
+
     const data = await res.json();
-    // 通义万相API响应格式：output.choices[0].message.content 中包含图片URL
     const imageUrl = data.output?.choices?.[0]?.message?.content?.find((c: any) => c.image)?.image;
     if (imageUrl) {
-      // 下载图片并转换为base64
       const imageRes = await fetch(imageUrl);
       const blob = await imageRes.blob();
       return new Promise((resolve, reject) => {
@@ -134,7 +108,7 @@ const EditorView: React.FC<EditorViewProps> = ({ image, onClose }) => {
         reader.readAsDataURL(blob);
       });
     } else {
-      throw new Error('响应格式异常');
+      throw new Error(`响应格式异常: ${JSON.stringify(data).substring(0, 300)}`);
     }
   }, []);
   
@@ -209,7 +183,7 @@ const EditorView: React.FC<EditorViewProps> = ({ image, onClose }) => {
       const height = currentImg ? currentImg.height : canvas.height;
       
       // 调用通义万相API进行图像变换（换装）
-      const resultImage = await callWanxiang(aiQuery, imageData, width, height);
+      const resultImage = await callWanxiang(aiQuery, imageData);
       
       // 保存当前状态到历史记录（支持撤销）
       saveToHistory();

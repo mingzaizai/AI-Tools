@@ -11,16 +11,16 @@ const getAIConfig = (model: AIModel): AIConfig | null => {
       format: 'openai',
     },
     qwen: {
-      endpoint: '/api/qwen',
+      endpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
       modelName: 'qwen-turbo',
       keyName: 'qwen_api_key',
-      format: 'qwen',
+      format: 'openai',
     },
   };
   
   const cfg = configs[model];
-  const apiKey = localStorage.getItem(cfg.keyName);
-  
+  const apiKey = localStorage.getItem(cfg.keyName)?.replace(/[^\x20-\x7E]/g, '') || null;
+
   if (!apiKey) return null;
   
   return {

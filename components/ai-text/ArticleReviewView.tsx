@@ -31,8 +31,8 @@ const ArticleReviewView: React.FC = () => {
   const [history, setHistory] = useState<ArticleResult[]>([]);
   const [analysisKey, setAnalysisKey] = useState(0);
   const { call, loading, error } = useDeepSeek();
-  const hasKey = !!localStorage.getItem('deepseek_api_key') || !!localStorage.getItem('qwen_api_key');
   const defaultModel = localStorage.getItem('default_ai_model') as 'deepseek' | 'qwen' ?? 'deepseek';
+  const hasKey = !!localStorage.getItem(`${defaultModel}_api_key`);
 
   const handleAnalyze = async () => {
     try {

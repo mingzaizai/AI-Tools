@@ -67,7 +67,7 @@ const SettingsView: React.FC = () => {
   };
 
   const handleTestDs = async () => {
-    const key = dsKey.trim();
+    const key = dsKey.trim().replace(/[^\x20-\x7E]/g, '');
     if (!key) { setDsTestResult({ ok: false, msg: '请先填写 API Key' }); return; }
     setDsTesting(true);
     setDsTestResult(null);
@@ -104,23 +104,18 @@ const SettingsView: React.FC = () => {
   };
 
   const handleTestQw = async () => {
-    const key = qwKey.trim();
+    const key = qwKey.trim().replace(/[^\x20-\x7E]/g, '');
     if (!key) { setQwTestResult({ ok: false, msg: '请先填写 API Key' }); return; }
     setQwTesting(true);
     setQwTestResult(null);
     try {
-      const res = await fetch('/api/qwen', {
+      const res = await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-        body: JSON.stringify({ model: 'qwen-turbo', input: { messages: [{ role: 'user', content: 'hi' }] }, parameters: { max_tokens: 1 } }),
+        body: JSON.stringify({ model: 'qwen-turbo', messages: [{ role: 'user', content: 'hi' }], max_tokens: 1 }),
       });
       if (res.ok) {
-        const data = await res.json();
-        if (data.output?.text) {
-          setQwTestResult({ ok: true, msg: '连接成功' });
-        } else {
-          setQwTestResult({ ok: false, msg: `响应格式异常: ${JSON.stringify(data)}` });
-        }
+        setQwTestResult({ ok: true, msg: '连接成功' });
       } else if (res.status === 401) {
         setQwTestResult({ ok: false, msg: 'API Key 无效（401）' });
       } else {
@@ -152,7 +147,7 @@ const SettingsView: React.FC = () => {
   };
 
   const handleTestWx = async () => {
-    const key = useQwKey ? qwKey.trim() : wxKey.trim();
+    const key = (useQwKey ? qwKey.trim() : wxKey.trim()).replace(/[^\x20-\x7E]/g, '');
     if (!key) { 
       setWxTestResult({ ok: false, msg: '请先填写 API Key' }); 
       return; 
@@ -162,37 +157,20 @@ const SettingsView: React.FC = () => {
     try {
       const res = await fetch('/api/wanxiang/text2image', {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json', 
-          Authorization: `Bearer ${key}` 
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${key}`
         },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           model: 'qwen-image-2.0-pro',
           input: {
-            messages: [
-              {
-                role: 'user',
-                content: [
-                  { text: '测试图片' }
-                ]
-              }
-            ]
+            messages: [{ role: 'user', content: [{ text: '测试' }] }]
           },
-          parameters: {
-            n: 1,
-            size: '512*512',
-            watermark: false
-          }
+          parameters: { n: 1, watermark: false }
         }),
       });
       if (res.ok) {
-        const data = await res.json();
-        // 检查响应格式是否正确（通义万相返回 choices 数组）
-        if (data.output?.choices?.length > 0) {
-          setWxTestResult({ ok: true, msg: '连接成功' });
-        } else {
-          setWxTestResult({ ok: false, msg: `响应格式异常: ${JSON.stringify(data)}` });
-        }
+        setWxTestResult({ ok: true, msg: '连接成功' });
       } else if (res.status === 401) {
         setWxTestResult({ ok: false, msg: 'API Key 无效（401）' });
       } else {
@@ -235,8 +213,7 @@ const SettingsView: React.FC = () => {
                 <p className="text-xs text-slate-500 leading-relaxed mb-3">
                   选择"AI 文本审查"模块使用的默认模型。
                 </p>
-                <div className="flex gap-2 flex-wrap">
-                  {/* 下拉选择框 */}
+                <div className="flex gap-2 flex-wrap items-center">
                   <div className="relative">
                     <button
                       onClick={() => setShowModelDropdown(!showModelDropdown)}
@@ -250,7 +227,13 @@ const SettingsView: React.FC = () => {
                         {modelOptions.map((option) => (
                           <button
                             key={option.value}
-                            onClick={() => setSelectedModel(option.value)}
+                            onClick={() => {
+                              setSelectedModel(option.value);
+                              localStorage.setItem('default_ai_model', option.value);
+                              setShowModelDropdown(false);
+                              setModelSaved(true);
+                              setTimeout(() => setModelSaved(false), 2000);
+                            }}
                             className={`w-full px-3 py-2 text-left text-xs hover:bg-slate-50 flex items-center gap-2 ${
                               selectedModel === option.value ? 'bg-slate-50 font-bold' : ''
                             }`}
@@ -262,12 +245,11 @@ const SettingsView: React.FC = () => {
                       </div>
                     )}
                   </div>
-                  <button
-                    onClick={handleSaveModel}
-                    className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-1.5"
-                  >
-                    {modelSaved ? <><CheckCircle2 className="w-3.5 h-3.5" />已保存</> : '保存'}
-                  </button>
+                  {modelSaved && (
+                    <span className="flex items-center gap-1 text-xs text-green-600">
+                      <CheckCircle2 className="w-3.5 h-3.5" />已保存
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
@@ -439,8 +421,16 @@ const SettingsView: React.FC = () => {
                   </div>
                 )}
                 {useQwKey && (
-                  <div className="flex gap-2 flex-wrap">
+                  <div className="flex gap-2 flex-wrap items-center">
                     <span className="text-xs text-slate-400">将使用 Qwen 的 API Key</span>
+                    <button
+                      onClick={handleTestWx}
+                      disabled={wxTesting}
+                      className="px-3 py-1.5 text-xs border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                    >
+                      {wxTesting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                      测试连接
+                    </button>
                     <button
                       onClick={handleSaveWxKey}
                       className="px-3 py-1.5 text-xs bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors flex items-center gap-1.5"
@@ -524,6 +514,9 @@ const SettingsView: React.FC = () => {
             <div className="space-y-2">
               <p className="text-sm font-bold text-slate-600 flex items-center gap-2">
                 <span className="flex items-center gap-2"><Info className="w-4 h-4" /> AI 文本审查 v1.0.1</span>
+              </p>
+              <p className="text-sm font-bold text-slate-600 flex items-center gap-2">
+                <span className="flex items-center gap-2"><Info className="w-4 h-4" /> <a href="https://beian.miit.gov.cn" target="_blank" rel="noopener noreferrer" className="hover:text-indigo-600 transition-colors">皖ICP备2026009011号-1</a></span>
               </p>
             </div>
             <div className="flex gap-6">

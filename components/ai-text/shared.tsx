@@ -142,16 +142,16 @@ export const CopyButton: React.FC<CopyButtonProps> = ({ text }) => {
 };
 
 export const NoKeyTip: React.FC = () => {
-  const hasDeepSeek = !!localStorage.getItem('deepseek_api_key');
-  const hasQwen = !!localStorage.getItem('qwen_api_key');
-  
-  if (hasDeepSeek || hasQwen) {
-    return null; // 如果已有配置，不显示提示
-  }
-  
+  const defaultModel = localStorage.getItem('default_ai_model') ?? 'deepseek';
+  const hasKey = !!localStorage.getItem(`${defaultModel}_api_key`);
+
+  if (hasKey) return null;
+
+  const modelName = defaultModel === 'qwen' ? 'Qwen (通义千问)' : 'DeepSeek';
+
   return (
     <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-700">
-      请先配置 AI 模型的 API Key（支持 DeepSeek 或 Qwen）。
+      当前默认模型为 <span className="font-medium">{modelName}</span>，请先配置对应的 API Key。
       <button
         onClick={() => window.dispatchEvent(new Event('navigate-to-settings'))}
         className="ml-1 text-indigo-600 underline"
